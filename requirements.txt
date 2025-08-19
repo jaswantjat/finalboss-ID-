@@ -2,6 +2,7 @@ opencv-python-headless>=4.5.0
 pillow>=9.0.0
 numpy>=1.20.0
 pytesseract>=0.3.8
+paddleocr>=3.0.3
 transformers==4.42.0
 sentencepiece>=0.1.96
 torch>=1.11.0

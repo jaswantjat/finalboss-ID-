@@ -5,7 +5,7 @@ FastAPI-based REST API for auto-rotation and straightening of ID documents
 """
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, status, Form
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import os
@@ -20,8 +20,8 @@ from PIL import Image
 import io
 import logging
 
-# Import our optimized straightener
-from optimized_straightener import OptimizedRotationDetector, OptimizedSkewCorrector
+# Import our hardened straightener
+from hardened_straightener import HardenedStraightener, hardened_straightener
 
 # Import PDF converter
 from pdf_converter import PDFConverter
@@ -52,8 +52,7 @@ app.add_middleware(
 )
 
 # Initialize processors
-rotation_detector = OptimizedRotationDetector()
-skew_corrector = OptimizedSkewCorrector()
+straightener = hardened_straightener
 pdf_converter = PDFConverter()
 
 # Supported image formats
@@ -104,54 +103,31 @@ def image_to_base64(image_path: str) -> str:
     return encoded_string
 
 def process_image_pipeline(image_path: str) -> Dict[str, Any]:
-    """Complete image processing pipeline"""
+    """Complete image processing pipeline using hardened straightener"""
     start_time = time.time()
 
     try:
-        # Step 1: Rotation detection
-        rotation_result = rotation_detector.detect_best_rotation(image_path)
-        best_angle = rotation_result["best_angle"]
-        rotation_confidence = rotation_result["confidence"]
+        result = straightener.straighten_image(image_path)
+        if not result.get("success"):
+            raise ValueError(result.get("error", "Unknown error during straightening"))
 
-        # Apply rotation if needed
-        img = cv2.imread(image_path)
-        if img is None:
-            raise ValueError("Could not read image file")
+        # Save final result to disk (PNG for web-friendly streaming)
+        output_path = image_path.replace('.jpg', '_straightened.png')
+        # Convert PIL image to bytes
+        img_bytes = io.BytesIO()
+        result["image"].save(img_bytes, format="PNG")
+        with open(output_path, 'wb') as f:
+            f.write(img_bytes.getvalue())
 
-        rotation_applied = False
-        if best_angle != 0:
-            if best_angle == 90:
-                img = cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)
-            elif best_angle == 180:
-                img = cv2.rotate(img, cv2.ROTATE_180)
-            elif best_angle == 270:
-                img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
-            rotation_applied = True
-
-        # Step 2: Skew correction
-        straightened_img, skew_angle = skew_corrector.straighten_image(img)
-        skew_applied = abs(skew_angle) > 0.3
-
-        # Save final result
-        output_path = image_path.replace('.jpg', '_straightened.jpg')
-        cv2.imwrite(output_path, straightened_img)
-
-        processing_time = time.time() - start_time
+        processing_time = result.get("processing_time", time.time() - start_time)
 
         return {
             "success": True,
             "output_path": output_path,
             "processing_time": processing_time,
-            "rotation": {
-                "angle_applied": best_angle,
-                "confidence": rotation_confidence,
-                "applied": rotation_applied
-            },
-            "skew_correction": {
-                "angle_detected": skew_angle,
-                "applied": skew_applied
-            },
-            "ocr_results": rotation_result.get("all_results", {}).get(best_angle, {})
+            "rotation": result.get("orientation", {}),
+            "skew_correction": result.get("skew_correction", {}),
+            "ocr_results": {}
         }
 
     except Exception as e:
@@ -224,14 +200,14 @@ async def get_stats():
 @app.post("/straighten", tags=["Image Processing"])
 async def straighten_image(
     file: UploadFile = File(...),
-    return_format: str = "base64"  # "base64" or "file"
+    return_format: str = Form("file")  # "file" (default) or "base64"
 ):
     """
     Straighten an ID card image by detecting rotation and correcting skew
 
     Parameters:
     - file: Image file (JPG, PNG, BMP, TIFF, WEBP)
-    - return_format: "base64" (default) or "file"
+    - return_format: "file" (default) or "base64"
 
     Returns:
     - Straightened image and processing metadata
@@ -281,18 +257,22 @@ async def straighten_image(
                 return JSONResponse(content=response_data)
 
             elif return_format == "file":
-                # Return file download
+                # Return inline file using StreamingResponse as PNG (more web-friendly)
                 response_data["image_format"] = "file"
 
-                # Cleanup temp input file
+                # Read the processed image into memory and stream it
+                with open(result["output_path"], "rb") as f:
+                    data = f.read()
+                buf = io.BytesIO(data)
+                buf.seek(0)
+
+                # Cleanup temp input file (keep output until streamed)
                 os.unlink(temp_path)
 
-                return FileResponse(
-                    path=result["output_path"],
-                    filename=f"straightened_{file.filename}",
-                    media_type="image/jpeg",
-                    headers={"X-Processing-Stats": str(response_data)}
-                )
+                headers = {"X-Processing-Stats": str(response_data),
+                           "Content-Disposition": 'inline; filename="straightened.png"'}
+
+                return StreamingResponse(buf, media_type="image/png", headers=headers)
 
             else:
                 raise HTTPException(
