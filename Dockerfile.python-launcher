@@ -1,4 +1,4 @@
-# Railway-compatible Dockerfile for FastAPI + OpenCV + Tesseract + Rembg
+# Railway-compatible Dockerfile using Python launcher (most robust)
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -21,13 +21,16 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application code
 COPY . .
 
+# Copy Python launcher script
+COPY run_server.py /app/run_server.py
+RUN chmod +x /app/run_server.py
+
 # Expose port (Railway will override with PORT env var)
 EXPOSE 8000
 
-# Simple healthcheck using curl-like approach with python
+# Simple healthcheck using inline Python (no heredoc, no shell issues)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
   CMD python -c "import urllib.request,os,sys; urllib.request.urlopen(f'http://127.0.0.1:{os.getenv(\"PORT\",\"8000\")}/health', timeout=5); sys.exit(0)" || exit 1
 
-# Start the FastAPI application (exec form with shell for proper env var expansion)
-CMD ["sh", "-c", "uvicorn api_service:app --host 0.0.0.0 --port ${PORT:-8000}"]
-
+# Use Python launcher (reads PORT env var and passes integer to uvicorn.run)
+CMD ["python", "/app/run_server.py"]

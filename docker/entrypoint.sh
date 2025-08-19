@@ -11,5 +11,5 @@ echo "🚀 Starting FastAPI application on port $PORT"
 echo "📡 Health check available at: http://0.0.0.0:$PORT/health"
 echo "📚 API docs available at: http://0.0.0.0:$PORT/docs"
 
-# Start uvicorn with proper port binding
-exec uvicorn api_service:app --host 0.0.0.0 --port "$PORT" --log-level info
+# Start uvicorn with proper port binding (ensure PORT is integer)
+exec uvicorn api_service:app --host 0.0.0.0 --port "${PORT}" --log-level info

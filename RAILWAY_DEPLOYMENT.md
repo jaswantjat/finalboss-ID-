@@ -12,9 +12,9 @@
 Railway injects a dynamic `PORT` environment variable, but Docker's JSON array form doesn't expand shell variables.
 
 ### ✅ Current Solution (Dockerfile)
-Uses shell form CMD for automatic variable expansion:
+Uses exec form with shell wrapper for proper variable expansion:
 ```dockerfile
-CMD uvicorn api_service:app --host 0.0.0.0 --port ${PORT:-8000}
+CMD ["sh", "-c", "uvicorn api_service:app --host 0.0.0.0 --port ${PORT:-8000}"]
 ```
 
 ### 🛡️ Alternative Solutions
@@ -25,11 +25,12 @@ Replace `Dockerfile` with `Dockerfile.entrypoint`:
 cp Dockerfile.entrypoint Dockerfile
 ```
 
-#### Option 2: Python-only (Simplest)
-Use `api_service.py` directly (already handles PORT):
+#### Option 2: Python Launcher (Most Robust)
+Use dedicated launcher script that reads PORT and passes integer to uvicorn:
 ```dockerfile
-CMD ["python", "api_service.py"]
+CMD ["python", "/app/run_server.py"]
 ```
+Replace `Dockerfile` with `Dockerfile.python-launcher` for this approach.
 
 #### Option 3: Railway Start Command Override
 Let Railway handle the command via `railway.toml`:
@@ -64,8 +65,8 @@ curl http://localhost:8000/docs
 ## 🔍 Troubleshooting
 
 ### "PORT is not a valid integer"
-- **Cause**: JSON array CMD doesn't expand variables
-- **Fix**: Use shell form CMD or entrypoint script
+- **Cause**: Uvicorn receives literal "$PORT" string instead of integer
+- **Fix**: Use `["sh", "-c", "..."]` for variable expansion or Python launcher script
 
 ### "unknown instruction: import"
 - **Cause**: Docker heredoc in HEALTHCHECK
