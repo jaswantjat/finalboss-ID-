@@ -2,11 +2,11 @@
 # Docs: https://docs.railway.com/reference/config-as-code
 
 [build]
-# Use Nixpacks by default unless Dockerfile is present; Railway will auto-detect Dockerfile.
-builder = "NIXPACKS"
+# Use Dockerfile (Railway will auto-detect and prioritize Dockerfile)
+builder = "DOCKERFILE"
 
 [deploy]
-# Start command for HTTP service; respects dynamic PORT
+# Start command for HTTP service; Railway handles PORT env var substitution
 startCommand = "uvicorn api_service:app --host 0.0.0.0 --port $PORT"
 # Healthcheck
 healthcheckPath = "/health"
