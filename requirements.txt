@@ -1,0 +1,18 @@
+opencv-python>=4.5.0
+pillow>=9.0.0
+numpy>=1.20.0
+pytesseract>=0.3.8
+transformers==4.42.0
+sentencepiece>=0.1.96
+torch>=1.11.0
+torchvision>=0.12.0
+torchaudio>=0.11.0
+fastapi>=0.104.0
+uvicorn>=0.24.0
+python-multipart>=0.0.6
+python-jose>=3.3.0
+reportlab>=4.0.0
+
+rembg>=2.0.67
+onnxruntime; platform_system != "Darwin" or platform_machine != "arm64"
+onnxruntime-silicon; platform_system == "Darwin" and platform_machine == "arm64"
