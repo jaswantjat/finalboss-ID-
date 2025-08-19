@@ -1,4 +1,4 @@
-# Railway-compatible Dockerfile for FastAPI + OpenCV + Tesseract + Rembg
+# Simplest Railway-compatible Dockerfile (no healthcheck)
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -29,10 +29,5 @@ COPY . .
 # Expose port (Railway will override with PORT env var)
 EXPOSE 8000
 
-# Simple healthcheck using curl-like approach with python
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-  CMD python -c "import urllib.request,os,sys; urllib.request.urlopen(f'http://127.0.0.1:{os.getenv(\"PORT\",\"8000\")}/health', timeout=5); sys.exit(0)" || exit 1
-
-# Start the FastAPI application
+# Start the FastAPI application (Railway will handle health checks via /health endpoint)
 CMD ["python", "api_service.py"]
-
