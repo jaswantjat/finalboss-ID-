@@ -1,44 +1,33 @@
 # Railway-friendly Dockerfile for FastAPI + OpenCV + Tesseract + Rembg
 FROM python:3.11-slim
 
-# Install system dependencies (OpenCV, Tesseract, fonts, build tools)
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+# System deps: Tesseract + Spanish data + libs for Pillow/OpenCV
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    libglib2.0-0 libsm6 libxext6 libxrender1 libgomp1 \
-    tesseract-ocr \
+    tesseract-ocr tesseract-ocr-spa libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy and install Python deps first for better caching
-COPY requirements.txt ./
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Install Python deps first for better caching
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Copy app code
 COPY . .
 
-# Expose port (documentation only; Railway uses PORT env)
+# Add the healthcheck script
+COPY docker/healthcheck.py /healthcheck.py
+
+# Expose (metadata only; Railway relies on PORT env)
 EXPOSE 8000
 
-# Environment
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+# Robust healthcheck (no heredoc)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+  CMD ["python", "/healthcheck.py"]
 
-# Healthcheck uses app's /health endpoint
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-  CMD python - <<'PY' || exit 1
-import os, sys
-import urllib.request
-port = os.getenv('PORT', '8000')
-url = f'http://127.0.0.1:{port}/health'
-try:
-    with urllib.request.urlopen(url, timeout=5) as r:
-        sys.exit(0 if r.status == 200 else 1)
-except Exception:
-    sys.exit(1)
-PY
-
-# Start with Uvicorn bound to Railway's dynamic PORT
-CMD ["bash", "-lc", "uvicorn api_service:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Start the API
+CMD ["python", "api_service.py"]
 
