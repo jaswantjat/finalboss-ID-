@@ -1,0 +1,17 @@
+# Railway Config as Code - Alternative with shell expansion
+# Docs: https://docs.railway.com/reference/config-as-code
+
+[build]
+# Use Dockerfile (Railway will auto-detect and prioritize Dockerfile)
+builder = "DOCKERFILE"
+
+[deploy]
+# Start command with shell expansion (wraps in sh -c)
+startCommand = "sh -c 'uvicorn api_service:app --host 0.0.0.0 --port ${PORT:-8000}'"
+# Alternative: Use Python launcher
+# startCommand = "python run_server.py"
+
+# Healthcheck
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "ALWAYS"
