@@ -11,36 +11,40 @@ The Docker build failure (exit code 2) during pip install is caused by:
 
 ## Solution Strategy
 
-### 🎯 **Approach 1: Staged Installation (Recommended)**
+### 🎯 **Default: Full Build with Complete ML Functionality**
 
-Use the main `Dockerfile` with staged dependency installation:
+The main `Dockerfile` is optimized for full functionality by default:
 
 ```bash
-# Build with staged installation
+# Default build - Full ML functionality (Recommended)
 docker build -t autocropper:latest .
 ```
 
 **Features:**
-- ✅ Full ML functionality (PaddleOCR, background removal)
-- ✅ Staged installation reduces conflicts
-- ✅ CPU-optimized PyTorch for smaller size
-- ✅ Comprehensive error handling
+- ✅ Complete ML functionality (PaddleOCR, background removal, transformers)
+- ✅ Advanced image straightening with CNN-based orientation detection
+- ✅ Background removal with rembg
+- ✅ Enhanced PDF conversion with alpha channel handling
+- ✅ Optimized staged installation with retry logic
+- ✅ CPU-optimized PyTorch for production stability
+- ✅ Extended timeouts and robust error handling
 
-### 🚀 **Approach 2: Minimal Build (Fallback)**
+### 🚀 **Fallback: Minimal Build (Emergency Only)**
 
-If the full build fails, use the minimal version:
+Only use if the full build fails due to resource constraints:
 
 ```bash
-# Build minimal version (core functionality only)
+# Minimal build (fallback only)
 docker build -f Dockerfile.minimal -t autocropper:minimal .
 ```
 
 **Features:**
 - ✅ Core image straightening and PDF conversion
-- ✅ Fast build time
-- ✅ Smaller image size
-- ❌ No PaddleOCR (uses Tesseract OSD only)
+- ✅ Fast build time (~3-5 min)
+- ✅ Smaller image size (~800 MB)
+- ❌ No PaddleOCR (Tesseract OSD only)
 - ❌ No background removal
+- ❌ Limited ML capabilities
 
 ### 🔧 **Approach 3: Local Development**
 
@@ -54,14 +58,16 @@ pip install -r requirements-ml.txt
 
 ## Build Options Comparison
 
-| Feature | Full Build | Minimal Build |
-|---------|------------|---------------|
-| Image Straightening | ✅ PaddleOCR + Tesseract | ✅ Tesseract only |
+| Feature | Full Build (Default) | Minimal Build (Fallback) |
+|---------|---------------------|---------------------------|
+| Image Straightening | ✅ PaddleOCR CNN + Tesseract OSD | ⚠️ Tesseract OSD only |
 | PDF Conversion | ✅ img2pdf + alpha handling | ✅ img2pdf + alpha handling |
-| Background Removal | ✅ rembg | ❌ |
-| Build Time | ~10-15 min | ~3-5 min |
-| Image Size | ~2-3 GB | ~800 MB |
-| Memory Usage | High | Low |
+| Background Removal | ✅ rembg with ONNX models | ❌ Not available |
+| Auto-rotation | ✅ EXIF + CNN + Hough lines | ⚠️ EXIF + basic skew only |
+| Build Time | ~15-20 min | ~3-5 min |
+| Image Size | ~2.5-3 GB | ~800 MB |
+| Memory Usage | 2-4 GB | 512 MB - 1 GB |
+| Production Ready | ✅ Full feature set | ⚠️ Limited capabilities |
 
 ## Troubleshooting
 

@@ -1,35 +1,39 @@
-# Simplified requirements for better compatibility
-# Core dependencies
-numpy>=1.20.0
-pillow>=9.0.0
+# Full-featured requirements - Complete ML functionality (Default)
+# Install order optimized for Docker builds
+
+# Core foundation
+numpy>=1.20.0,<2.0.0
+pillow>=9.0.0,<11.0.0
 setuptools>=65.0.0
 wheel>=0.37.0
 
-# FastAPI and web framework
-fastapi>=0.104.0
-uvicorn>=0.24.0
-python-multipart>=0.0.6
-
 # Image processing
-opencv-python-headless>=4.5.0
-pytesseract>=0.3.8
+opencv-python-headless>=4.5.0,<5.0.0
 
-# PDF processing
-reportlab>=4.0.0
-img2pdf>=0.4.4
-
-# Authentication
+# Web framework
+fastapi>=0.104.0,<1.0.0
+uvicorn>=0.24.0,<1.0.0
+python-multipart>=0.0.6
 python-jose>=3.3.0
 
-# PyTorch CPU (smaller and more compatible)
-torch>=1.11.0
-torchvision>=0.12.0
+# Document processing
+pytesseract>=0.3.8
+reportlab>=4.0.0,<5.0.0
+img2pdf>=0.4.4,<1.0.0
 
-# ML dependencies
-transformers>=4.20.0
-sentencepiece>=0.1.96
-onnxruntime>=1.12.0
+# PyTorch CPU (optimized for production)
+torch>=1.11.0,<3.0.0
+torchvision>=0.12.0,<1.0.0
 
-# Background removal and OCR
-rembg>=2.0.67
-paddleocr>=3.0.3
+# ML and NLP
+transformers>=4.20.0,<5.0.0
+sentencepiece>=0.1.96,<1.0.0
+
+# ONNX Runtime
+onnxruntime>=1.12.0,<2.0.0
+
+# Background removal
+rembg>=2.0.67,<3.0.0
+
+# Advanced OCR (PaddleOCR)
+paddleocr>=3.0.3,<4.0.0

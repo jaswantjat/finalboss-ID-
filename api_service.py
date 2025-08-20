@@ -153,6 +153,13 @@ async def root():
         "service": "Image Processing API",
         "version": "1.0.0",
         "status": "operational",
+        "build_type": "full",
+        "features": {
+            "advanced_ocr": "PaddleOCR CNN-based orientation detection",
+            "background_removal": "rembg with ONNX models",
+            "pdf_conversion": "img2pdf with alpha channel handling",
+            "auto_rotation": "EXIF + CNN + Hough line correction"
+        },
         "endpoints": {
             "health": "/health",
             "straighten": "/straighten",

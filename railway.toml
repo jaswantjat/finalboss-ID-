@@ -1,15 +1,24 @@
-# Railway Config as Code
+# Railway Config as Code - Optimized for Full ML Build
 # Docs: https://docs.railway.com/reference/config-as-code
 
 [build]
-# Use Dockerfile (Railway will auto-detect and prioritize Dockerfile)
+# Use main Dockerfile for full ML functionality
 builder = "DOCKERFILE"
+# Increase build timeout for ML dependencies
+buildCommand = "docker build -t autocropper:latest ."
 
 [deploy]
+# Optimized for full ML functionality
 # Let Dockerfile CMD handle startup with proper shell expansion
-# startCommand = "uvicorn api_service:app --host 0.0.0.0 --port $PORT"
-# Healthcheck
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ALWAYS"
+
+# Environment variables for production
+[env]
+# Optimize for ML workloads
+PYTHONUNBUFFERED = "1"
+PYTHONDONTWRITEBYTECODE = "1"
+# Increase memory allocation hints
+NODE_OPTIONS = "--max-old-space-size=4096"
 

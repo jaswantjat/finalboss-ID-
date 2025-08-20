@@ -1,46 +1,73 @@
 # Image Processing API
-Production-ready REST API for image processing services
+Production-ready REST API with Full ML Capabilities
 
-A FastAPI-based web service that provides:
-1. **ID Card Straightening**: Automatically detects rotation and corrects skew in ID card images using advanced OCR-guided analysis and computer vision techniques
-2. **Image to PDF Conversion**: Converts images of any format (JPEG, PNG, GIF, BMP, TIFF, WEBP) to PDF documents with configurable page sizes and fitting options
+A FastAPI-based web service with complete machine learning functionality:
+1. **Advanced ID Card Straightening**: CNN-based orientation detection with PaddleOCR + EXIF + Hough line correction
+2. **Enhanced PDF Conversion**: img2pdf with alpha channel handling and flexible page sizing
+3. **Background Removal**: AI-powered background removal using rembg with ONNX models
 
-## Features
+## 🎯 Full ML Features (Default Build)
 
-### ID Card Straightening
-- **🎯 Smart Rotation Detection**: OCR-based analysis with Spanish ID keyword recognition
-- **🔧 Skew Correction**: Advanced projection-based skew detection and correction
-- **⚡ High Performance**: Optimized for speed and accuracy
+### Advanced ID Card Straightening
+- **🧠 CNN-based Orientation**: PaddleOCR neural network for 0°/90°/180°/270° detection
+- **📱 EXIF Correction**: Automatic phone photo orientation handling
+- **📐 Fine Skew Correction**: Hough line-based ±5° skew correction
+- **🔄 Confidence Gating**: Tesseract OSD fallback for edge cases
+- **⚡ Production Optimized**: Robust error handling and JSON serialization
 
-### Image to PDF Conversion
-- **📄 Multi-Format Support**: Convert JPEG, PNG, GIF, BMP, TIFF, WEBP to PDF
-- **📏 Flexible Page Sizes**: Support for A4, Letter, and Legal page sizes
-- **🎨 Smart Fitting**: Maintain aspect ratio or fill page options
-- **📚 Batch Processing**: Convert multiple images to single multi-page PDF
-- **💾 Dual Output**: Download file or receive base64 encoded data
+### Enhanced PDF Conversion
+- **🎨 Alpha Channel Handling**: Proper PNG transparency removal (no black rectangles)
+- **📄 Flexible Page Sizing**: "fit" (image-sized), A4, Letter, A4^T, custom dimensions
+- **🎯 Advanced Fit Modes**: into, fill, exact, shrink, enlarge
+- **🌈 Configurable Backgrounds**: Custom background colors for alpha removal
+- **📚 Multi-page Support**: Mixed image formats in single PDF
+- **🔄 Auto-orientation**: EXIF-based rotation handling
 
-### General Features
-- **🚀 REST API**: FastAPI-based web service with automatic documentation
-- **🖥️ Test UI**: Interactive web interface for easy testing
-- **📊 Processing Statistics**: Real-time monitoring and performance metrics
-- **🛡️ Production Ready**: Comprehensive error handling, validation, and logging
+### AI Background Removal
+- **🤖 ONNX Models**: High-quality AI-powered background removal
+- **🎨 Multiple Models**: Support for different image types
+- **⚡ Optimized Performance**: CPU-optimized inference
+
+### Production Features
+- **🚀 REST API**: FastAPI with comprehensive documentation
+- **🧪 Automated Testing**: Built-in test endpoints with 4 test scenarios
+- **📊 Real-time Monitoring**: Processing statistics and performance metrics
+- **🛡️ Enterprise Ready**: Comprehensive error handling and logging
+- **🐳 Docker Optimized**: Staged builds with retry logic
 
 ## Quick Start
 
-### 1. Start the API Server
+### 🚀 Production Deployment (Full ML Build)
+
+```bash
+# Deploy full ML functionality (Recommended)
+./deploy-full.sh
+```
+
+This will:
+- Build Docker image with complete ML stack
+- Test all ML capabilities (PaddleOCR, background removal, PDF)
+- Verify production readiness
+- Provide deployment instructions
+
+### 🐳 Docker Deployment
+
+```bash
+# Full ML build (default)
+docker build -t autocropper:latest .
+docker run -p 8000:8000 autocropper:latest
+
+# Access API at http://localhost:8000
+```
+
+### 🛠️ Local Development
 
 ```bash
 # Automated setup and launch
 ./start_api.sh
 ```
 
-This will:
-- Create a Python virtual environment
-- Install all dependencies
-- Start the FastAPI server on http://localhost:8000
-
-### 2. Manual Setup
-
+Or manually:
 ```bash
 python -m venv id_env
 source id_env/bin/activate  # On Windows: id_env\Scripts\activate
