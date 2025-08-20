@@ -13,6 +13,7 @@ uvicorn>=0.24.0
 python-multipart>=0.0.6
 python-jose>=3.3.0
 reportlab>=4.0.0
+img2pdf>=0.4.4
 
 rembg>=2.0.67
 onnxruntime; platform_system != "Darwin" or platform_machine != "arm64"

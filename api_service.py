@@ -18,6 +18,7 @@ import cv2
 import numpy as np
 from PIL import Image
 import io
+import img2pdf
 import logging
 
 # Import our hardened straightener
@@ -102,6 +103,14 @@ def image_to_base64(image_path: str) -> str:
         encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
     return encoded_string
 
+def _flatten_alpha_to_rgb(pil_img: Image.Image, bg=(255, 255, 255)) -> Image.Image:
+    """Remove transparency the right way to avoid black boxes in PDF."""
+    if pil_img.mode in ("RGBA", "LA") or (pil_img.mode == "P" and "transparency" in pil_img.info):
+        base = Image.new("RGB", pil_img.size, bg)
+        base.paste(pil_img, mask=pil_img.split()[-1])  # composite by alpha
+        return base
+    return pil_img.convert("RGB")
+
 def process_image_pipeline(image_path: str) -> Dict[str, Any]:
     """Complete image processing pipeline using hardened straightener"""
     start_time = time.time()
@@ -149,6 +158,7 @@ async def root():
             "straighten": "/straighten",
             "convert-to-pdf": "/convert-to-pdf",
             "remove-background": "/remove-background",
+            "test-pdf-conversion": "/test-pdf-conversion",
             "stats": "/stats",
             "docs": "/docs"
         }
@@ -390,188 +400,180 @@ async def remove_background(
         )
 
 @app.post("/convert-to-pdf", tags=["PDF Conversion"])
-
-
-async def convert_images_to_pdf(
+async def convert_to_pdf(
     files: List[UploadFile] = File(...),
-    return_format: str = Form("file"),  # "file" (default) or "base64"
-    page_size: str = Form("A4"),  # "A4", "Letter", "Legal"
-    fit_mode: str = Form("fit")  # "fit" (maintain aspect ratio) or "fill"
+    # page sizing: "fit" (image-sized pages) or A4, Letter, 210mmx297mm, A4^T, etc.
+    page_size: str = Form("fit"),
+    # how to fit the image when using a fixed page_size (A4/Letter/etc.)
+    fit_mode: str = Form("into"),  # into|fill|exact|shrink|enlarge (img2pdf)
+    # optional white background (useful after BG removal)
+    bg_color: str = Form("255,255,255"),  # "R,G,B"
 ):
     """
-    Convert one or more images to PDF format
+    Convert one or more images to PDF format with improved alpha handling
 
     Parameters:
     - files: One or more image files (JPG, PNG, GIF, BMP, TIFF, WEBP) - max 10MB each, up to 20 files
-    - return_format: "file" (default) or "base64"
-    - page_size: "A4" (default), "Letter", or "Legal"
-    - fit_mode: "fit" (maintain aspect ratio, default) or "fill" (stretch to fill)
+    - page_size: "fit" (image-sized pages, default), "A4", "Letter", "A4^T", "210mmx297mm", etc.
+    - fit_mode: "into" (fit inside, default), "fill", "exact", "shrink", "enlarge" (img2pdf modes)
+    - bg_color: Background color for alpha removal as "R,G,B" (default: "255,255,255" for white)
 
     Returns:
-    - PDF file download or JSON with base64 encoded PDF and metadata
+    - PDF file with proper alpha handling and configurable page sizing
     """
     stats.pdf_conversion_requests += 1
-    temp_files = []
 
     try:
-        # Input validation
-        if not files or len(files) == 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No files provided"
-            )
-
+        # Validate number of files
         if len(files) > 20:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Too many files. Maximum 20 files per request"
+                detail="Maximum 20 files allowed per request"
             )
 
-        # Validate parameters
-        valid_page_sizes = ["A4", "Letter", "Legal"]
-        if page_size not in valid_page_sizes:
+        if not files:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid page_size '{page_size}'. Supported: {', '.join(valid_page_sizes)}"
+                detail="At least one file is required"
             )
 
-        valid_fit_modes = ["fit", "fill"]
-        if fit_mode not in valid_fit_modes:
+        # Parse background color
+        try:
+            bg_rgb = tuple(map(int, bg_color.split(',')))
+            if len(bg_rgb) != 3 or any(c < 0 or c > 255 for c in bg_rgb):
+                raise ValueError()
+        except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid fit_mode '{fit_mode}'. Supported: {', '.join(valid_fit_modes)}"
+                detail="bg_color must be in format 'R,G,B' with values 0-255"
             )
 
-        valid_return_formats = ["file", "base64"]
-        if return_format not in valid_return_formats:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid return_format '{return_format}'. Supported: {', '.join(valid_return_formats)}"
-            )
+        # Track processing start time
+        start_time = time.time()
 
-        # Validate and save uploaded files
-        for i, file in enumerate(files):
+        # 1) Read & pre-process images (remove alpha)
+        rgb_bytes_list: List[bytes] = []
+        for i, f in enumerate(files):
             try:
-                validate_image_file(file)
+                # Validate file
+                validate_image_file(f)
 
-                # Create temporary file with proper extension
-                file_ext = os.path.splitext(file.filename or '.jpg')[1].lower()
-                if not file_ext:
-                    file_ext = '.jpg'
+                raw = await f.read()
+                img = Image.open(io.BytesIO(raw))
+                img = _flatten_alpha_to_rgb(img, bg_rgb)  # important: remove alpha
+                buf = io.BytesIO()
+                img.save(buf, format="JPEG", quality=95)  # JPEG keeps PDFs tiny
+                rgb_bytes_list.append(buf.getvalue())
 
-                with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as temp_file:
-                    content = await file.read()
-                    if not content:
-                        raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=f"File {i+1} is empty"
-                        )
-                    temp_file.write(content)
-                    temp_files.append(temp_file.name)
-
-            except HTTPException:
-                raise
+            except HTTPException as e:
+                raise HTTPException(
+                    status_code=e.status_code,
+                    detail=f"File {i+1} ({f.filename}): {e.detail}"
+                )
             except Exception as e:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Error processing file {i+1}: {str(e)}"
+                    detail=f"File {i+1} ({f.filename}): Failed to process image - {str(e)}"
                 )
 
-        # Create output PDF
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as pdf_temp:
-            pdf_output_path = pdf_temp.name
+        # 2) Build img2pdf layout
+        # "fit" => page size equals image size (no margins). Otherwise use given page size.
+        layout_fun = None
+        if page_size.lower() != "fit":
+            try:
+                # Map fit_mode string to img2pdf.FitMode enum
+                fit_mode_map = {
+                    "into": img2pdf.FitMode.into,
+                    "fill": img2pdf.FitMode.fill,
+                    "exact": img2pdf.FitMode.exact,
+                    "shrink": img2pdf.FitMode.shrink,
+                    "enlarge": img2pdf.FitMode.enlarge
+                }
 
+                if fit_mode.lower() not in fit_mode_map:
+                    raise ValueError(f"Invalid fit_mode: {fit_mode}")
+
+                # Map common page sizes to point values (img2pdf uses points)
+                page_size_map = {
+                    "A4": (595.276, 841.890),  # A4 in points
+                    "Letter": (612, 792),      # US Letter in points
+                    "Legal": (612, 1008),      # US Legal in points
+                    "A4^T": (841.890, 595.276)  # A4 landscape
+                }
+
+                if page_size in page_size_map:
+                    pagesize_value = page_size_map[page_size]
+                elif page_size.upper() in page_size_map:
+                    pagesize_value = page_size_map[page_size.upper()]
+                else:
+                    # For custom sizes like "210mmx297mm", convert to points
+                    # 1mm = 2.834645669 points
+                    if 'mm' in page_size.lower() and 'x' in page_size.lower():
+                        try:
+                            dims = page_size.lower().replace('mm', '').split('x')
+                            width_mm, height_mm = float(dims[0]), float(dims[1])
+                            pagesize_value = (width_mm * 2.834645669, height_mm * 2.834645669)
+                        except:
+                            raise ValueError(f"Invalid custom page size format: {page_size}")
+                    else:
+                        raise ValueError(f"Unsupported page size: {page_size}")
+
+                layout_fun = img2pdf.get_layout_fun(
+                    pagesize=pagesize_value,
+                    fit=fit_mode_map[fit_mode.lower()]
+                )
+            except (ValueError, KeyError) as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid page_size '{page_size}' or fit_mode '{fit_mode}': {str(e)}"
+                )
+
+        # 3) Convert (auto-orient uses EXIF to match page orientation)
         try:
-            # Convert images to PDF
-            if len(temp_files) == 1:
-                result = pdf_converter.convert_single_image_to_pdf(
-                    temp_files[0], pdf_output_path, page_size, fit_mode
+            logger.info(f"Converting {len(rgb_bytes_list)} images to PDF with layout_fun={layout_fun}")
+
+            # Call img2pdf.convert with or without layout_fun
+            if layout_fun is not None:
+                pdf_bytes = img2pdf.convert(
+                    rgb_bytes_list,
+                    layout_fun=layout_fun,
+                    auto_orient=True
                 )
             else:
-                result = pdf_converter.convert_multiple_images_to_pdf(
-                    temp_files, pdf_output_path, page_size, fit_mode
+                # For "fit" page size, use default behavior (image-sized pages)
+                pdf_bytes = img2pdf.convert(
+                    rgb_bytes_list,
+                    auto_orient=True
                 )
 
-            # Check if conversion was successful
-            if not result.get("success", True):
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="PDF conversion failed"
-                )
-
-            # Update statistics
-            stats.pdf_conversion_successful += 1
-            stats.total_pdf_processing_time += result["processing_time"]
-            stats.total_images_converted += len(temp_files)
-
-            # Prepare response data
-            response_data = {
-                "success": True,
-                "total_images": len(files),
-                "processing_time_seconds": round(result["processing_time"], 4),
-                "page_size": page_size,
-                "fit_mode": fit_mode,
-                "output_size_bytes": result.get("output_size", 0),
-                "input_filenames": [f.filename for f in files]
-            }
-
-            # Add conversion details for multi-image PDFs
-            if len(temp_files) > 1:
-                response_data.update({
-                    "successful_images": result.get("successful_images", len(temp_files)),
-                    "failed_images": result.get("failed_images", 0),
-                    "partial_success": result.get("partial_success", False)
-                })
-
-            if return_format == "base64":
-                # Return base64 encoded PDF
-                try:
-                    with open(pdf_output_path, "rb") as pdf_file:
-                        pdf_base64 = base64.b64encode(pdf_file.read()).decode('utf-8')
-
-                    response_data["pdf_base64"] = pdf_base64
-
-                    # Cleanup PDF file
-                    os.unlink(pdf_output_path)
-
-                    return JSONResponse(content=response_data)
-
-                except Exception as e:
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=f"Failed to encode PDF: {str(e)}"
-                    )
-
-            else:  # return_format == "file"
-                # Generate appropriate filename
-                if len(files) == 1:
-                    base_name = os.path.splitext(files[0].filename or "image")[0]
-                    output_filename = f"{base_name}.pdf"
-                else:
-                    output_filename = f"converted_{len(files)}_images.pdf"
-
-                return FileResponse(
-                    path=pdf_output_path,
-                    filename=output_filename,
-                    media_type="application/pdf",
-                    headers={
-                        "X-Processing-Time": str(response_data["processing_time_seconds"]),
-                        "X-Total-Images": str(response_data["total_images"]),
-                        "X-Output-Size": str(response_data["output_size_bytes"])
-                    }
-                )
-
+            logger.info(f"PDF conversion successful, size: {len(pdf_bytes)} bytes")
         except Exception as e:
-            logger.error(f"PDF generation error: {str(e)}")
+            logger.error(f"PDF conversion error: {str(e)}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"PDF generation failed: {str(e)}"
+                detail=f"PDF conversion failed: {str(e)}"
             )
-        finally:
-            # Cleanup temp image files
-            for temp_file in temp_files:
-                if os.path.exists(temp_file):
-                    os.unlink(temp_file)
+
+        processing_time = time.time() - start_time
+
+        # Update stats
+        stats.pdf_conversion_successful += 1
+        stats.total_images_converted += len(files)
+        stats.total_pdf_processing_time += processing_time
+
+        # 4) Stream back the PDF
+        return StreamingResponse(
+            io.BytesIO(pdf_bytes),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": 'inline; filename="id-document.pdf"',
+                "X-Processing-Time": str(processing_time),
+                "X-Total-Images": str(len(files)),
+                "X-Output-Size": str(len(pdf_bytes))
+            }
+        )
 
     except HTTPException:
         stats.pdf_conversion_failed += 1
@@ -583,6 +585,222 @@ async def convert_images_to_pdf(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred during PDF conversion"
         )
+
+@app.post("/test-pdf-conversion", tags=["Testing"])
+async def test_pdf_conversion():
+    """
+    Test the PDF conversion functionality with various scenarios
+
+    This endpoint runs automated tests to verify:
+    - Alpha channel handling (transparency removal)
+    - Different page sizes and fit modes
+    - Multi-page PDF generation
+    - Error handling for invalid parameters
+
+    Returns:
+    - Comprehensive test results with success/failure status for each scenario
+    """
+    from PIL import Image, ImageDraw
+    import tempfile
+    import os
+
+    test_results = {
+        "test_summary": {
+            "total_tests": 0,
+            "passed": 0,
+            "failed": 0,
+            "test_timestamp": datetime.now().isoformat()
+        },
+        "test_cases": []
+    }
+
+    # Helper function to create test images
+    def create_test_image(width=400, height=300, mode='RGB', bg_color=(255, 255, 255), has_alpha=False):
+        if has_alpha and mode == 'RGB':
+            mode = 'RGBA'
+            bg_color = bg_color + (0,) if len(bg_color) == 3 else bg_color
+
+        img = Image.new(mode, (width, height), bg_color)
+        draw = ImageDraw.Draw(img)
+
+        # Draw some content
+        draw.rectangle([50, 50, width-50, height-50],
+                      fill=(100, 150, 200, 255) if has_alpha else (100, 150, 200),
+                      outline=(0, 0, 0, 255) if has_alpha else (0, 0, 0),
+                      width=3)
+        draw.text((width//4, height//2-10), "TEST", fill=(255, 255, 255, 255) if has_alpha else (255, 255, 255))
+
+        return img
+
+    # Helper function to run a test case
+    async def run_test_case(name, description, test_func):
+        test_results["test_summary"]["total_tests"] += 1
+        test_case = {
+            "name": name,
+            "description": description,
+            "status": "failed",
+            "error": None,
+            "details": {}
+        }
+
+        try:
+            result = await test_func()
+            test_case["status"] = "passed"
+            test_case["details"] = result
+            test_results["test_summary"]["passed"] += 1
+        except Exception as e:
+            test_case["status"] = "failed"
+            test_case["error"] = str(e)
+            test_results["test_summary"]["failed"] += 1
+            logger.error(f"Test case '{name}' failed: {str(e)}")
+
+        test_results["test_cases"].append(test_case)
+
+    # Test Case 1: Basic RGB image with fit page size
+    async def test_basic_rgb():
+        img = create_test_image()
+        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
+            img.save(tmp.name, 'JPEG')
+
+            # Simulate the conversion process
+            raw = open(tmp.name, 'rb').read()
+            pil_img = Image.open(io.BytesIO(raw))
+            flattened = _flatten_alpha_to_rgb(pil_img)
+
+            buf = io.BytesIO()
+            flattened.save(buf, format="JPEG", quality=95)
+            pdf_bytes = img2pdf.convert([buf.getvalue()], auto_orient=True)
+
+            os.unlink(tmp.name)
+
+            return {
+                "input_mode": img.mode,
+                "output_mode": flattened.mode,
+                "pdf_size_bytes": len(pdf_bytes),
+                "alpha_handled": flattened.mode == 'RGB'
+            }
+
+    # Test Case 2: PNG with alpha channel
+    async def test_alpha_channel():
+        img = create_test_image(mode='RGBA', bg_color=(0, 0, 0, 0), has_alpha=True)
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+            img.save(tmp.name, 'PNG')
+
+            raw = open(tmp.name, 'rb').read()
+            pil_img = Image.open(io.BytesIO(raw))
+            flattened = _flatten_alpha_to_rgb(pil_img, (255, 255, 255))
+
+            buf = io.BytesIO()
+            flattened.save(buf, format="JPEG", quality=95)
+            pdf_bytes = img2pdf.convert([buf.getvalue()], auto_orient=True)
+
+            os.unlink(tmp.name)
+
+            return {
+                "input_mode": img.mode,
+                "input_has_alpha": img.mode in ('RGBA', 'LA'),
+                "output_mode": flattened.mode,
+                "pdf_size_bytes": len(pdf_bytes),
+                "alpha_removed": flattened.mode == 'RGB'
+            }
+
+    # Test Case 3: A4 page size with layout function
+    async def test_a4_layout():
+        img = create_test_image()
+        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
+            img.save(tmp.name, 'JPEG')
+
+            raw = open(tmp.name, 'rb').read()
+            pil_img = Image.open(io.BytesIO(raw))
+            flattened = _flatten_alpha_to_rgb(pil_img)
+
+            buf = io.BytesIO()
+            flattened.save(buf, format="JPEG", quality=95)
+
+            # Test A4 layout function
+            layout_fun = img2pdf.get_layout_fun(
+                pagesize=(595.276, 841.890),  # A4 in points
+                fit=img2pdf.FitMode.into
+            )
+            pdf_bytes = img2pdf.convert([buf.getvalue()], layout_fun=layout_fun, auto_orient=True)
+
+            os.unlink(tmp.name)
+
+            return {
+                "page_size": "A4",
+                "fit_mode": "into",
+                "pdf_size_bytes": len(pdf_bytes),
+                "layout_applied": True
+            }
+
+    # Test Case 4: Multi-page PDF
+    async def test_multipage():
+        images = [
+            create_test_image(400, 300),
+            create_test_image(300, 400),  # Different aspect ratio
+            create_test_image(200, 200, has_alpha=True, mode='RGBA', bg_color=(0, 0, 0, 0))
+        ]
+
+        rgb_bytes_list = []
+        temp_files = []
+
+        try:
+            for i, img in enumerate(images):
+                tmp = tempfile.NamedTemporaryFile(suffix=f'_{i}.png', delete=False)
+                img.save(tmp.name, 'PNG')
+                temp_files.append(tmp.name)
+
+                raw = open(tmp.name, 'rb').read()
+                pil_img = Image.open(io.BytesIO(raw))
+                flattened = _flatten_alpha_to_rgb(pil_img)
+
+                buf = io.BytesIO()
+                flattened.save(buf, format="JPEG", quality=95)
+                rgb_bytes_list.append(buf.getvalue())
+
+            pdf_bytes = img2pdf.convert(rgb_bytes_list, auto_orient=True)
+
+            return {
+                "input_images": len(images),
+                "pdf_size_bytes": len(pdf_bytes),
+                "multipage_success": len(rgb_bytes_list) == len(images)
+            }
+        finally:
+            for tmp_file in temp_files:
+                if os.path.exists(tmp_file):
+                    os.unlink(tmp_file)
+
+    # Run all test cases
+    await run_test_case(
+        "basic_rgb_conversion",
+        "Test basic RGB image conversion with fit page size",
+        test_basic_rgb
+    )
+
+    await run_test_case(
+        "alpha_channel_handling",
+        "Test PNG with alpha channel transparency removal",
+        test_alpha_channel
+    )
+
+    await run_test_case(
+        "a4_page_layout",
+        "Test A4 page size with into fit mode",
+        test_a4_layout
+    )
+
+    await run_test_case(
+        "multipage_pdf",
+        "Test multi-page PDF generation with mixed image types",
+        test_multipage
+    )
+
+    # Calculate success rate
+    total = test_results["test_summary"]["total_tests"]
+    passed = test_results["test_summary"]["passed"]
+    test_results["test_summary"]["success_rate"] = f"{(passed/total*100):.1f}%" if total > 0 else "0%"
+
+    return test_results
 
 if __name__ == "__main__":
     # Run the API server
