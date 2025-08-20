@@ -84,11 +84,12 @@ RUN mkdir -p /root/.u2net && \
 COPY . .
 
 # Expose port (Railway will override with PORT env var)
-EXPOSE 8000
+EXPOSE 8080
 
 # Simple healthcheck using curl-like approach with python
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-  CMD python -c "import urllib.request,os,sys; urllib.request.urlopen(f'http://127.0.0.1:{os.getenv(\"PORT\",\"8000\")}/health', timeout=5); sys.exit(0)" || exit 1
+  CMD python -c "import urllib.request,os,sys; urllib.request.urlopen(f'http://127.0.0.1:{os.getenv(\"PORT\",\"8080\")}/health', timeout=5); sys.exit(0)" || exit 1
 
-CMD ["uvicorn","api_service:app","--host","0.0.0.0","--port","${PORT:-8080}","--workers","1"]
+# Use shell to expand ${PORT:-8080}
+CMD ["sh","-c","uvicorn api_service:app --host 0.0.0.0 --port ${PORT:-8080} --workers 1"]
 
