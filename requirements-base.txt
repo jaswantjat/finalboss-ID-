@@ -1,0 +1,23 @@
+# Core dependencies - install first
+numpy>=1.20.0,<2.0.0
+pillow>=9.0.0,<11.0.0
+setuptools>=65.0.0
+wheel>=0.37.0
+
+# FastAPI and web framework
+fastapi>=0.104.0,<1.0.0
+uvicorn>=0.24.0,<1.0.0
+python-multipart>=0.0.6
+
+# Basic image processing
+opencv-python-headless>=4.5.0,<5.0.0
+
+# OCR
+pytesseract>=0.3.8
+
+# PDF processing
+reportlab>=4.0.0,<5.0.0
+img2pdf>=0.4.4,<1.0.0
+
+# Authentication
+python-jose>=3.3.0

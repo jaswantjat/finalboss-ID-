@@ -1,20 +1,35 @@
-opencv-python-headless>=4.5.0
-pillow>=9.0.0
+# Simplified requirements for better compatibility
+# Core dependencies
 numpy>=1.20.0
-pytesseract>=0.3.8
-paddleocr>=3.0.3
-transformers==4.42.0
-sentencepiece>=0.1.96
-torch>=1.11.0
-torchvision>=0.12.0
-torchaudio>=0.11.0
+pillow>=9.0.0
+setuptools>=65.0.0
+wheel>=0.37.0
+
+# FastAPI and web framework
 fastapi>=0.104.0
 uvicorn>=0.24.0
 python-multipart>=0.0.6
-python-jose>=3.3.0
+
+# Image processing
+opencv-python-headless>=4.5.0
+pytesseract>=0.3.8
+
+# PDF processing
 reportlab>=4.0.0
 img2pdf>=0.4.4
 
+# Authentication
+python-jose>=3.3.0
+
+# PyTorch CPU (smaller and more compatible)
+torch>=1.11.0
+torchvision>=0.12.0
+
+# ML dependencies
+transformers>=4.20.0
+sentencepiece>=0.1.96
+onnxruntime>=1.12.0
+
+# Background removal and OCR
 rembg>=2.0.67
-onnxruntime; platform_system != "Darwin" or platform_machine != "arm64"
-onnxruntime-silicon; platform_system == "Darwin" and platform_machine == "arm64"
+paddleocr>=3.0.3

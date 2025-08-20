@@ -1,0 +1,16 @@
+# Minimal requirements for core functionality only
+# Web framework
+fastapi>=0.104.0
+uvicorn>=0.24.0
+python-multipart>=0.0.6
+python-jose>=3.3.0
+
+# Core image processing
+numpy>=1.20.0
+pillow>=9.0.0
+opencv-python-headless>=4.5.0
+
+# OCR and PDF
+pytesseract>=0.3.8
+reportlab>=4.0.0
+img2pdf>=0.4.4

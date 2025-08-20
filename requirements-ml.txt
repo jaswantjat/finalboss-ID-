@@ -1,0 +1,17 @@
+# ML dependencies - install after base
+# PyTorch CPU-only for better compatibility and smaller size
+torch>=1.11.0,<3.0.0
+torchvision>=0.12.0,<1.0.0
+
+# NLP and transformers
+transformers>=4.20.0,<5.0.0
+sentencepiece>=0.1.96,<1.0.0
+
+# ONNX Runtime CPU
+onnxruntime>=1.12.0,<2.0.0
+
+# Background removal
+rembg>=2.0.67,<3.0.0
+
+# PaddleOCR - install last
+paddleocr>=3.0.3,<4.0.0
