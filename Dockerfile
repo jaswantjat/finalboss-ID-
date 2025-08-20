@@ -49,31 +49,31 @@ RUN (pip install --no-cache-dir --only-binary=:all: \
 
 # Stage 2: Web framework
 RUN pip install --no-cache-dir \
-    fastapi>=0.104.0,<1.0.0 \
-    uvicorn>=0.24.0,<1.0.0 \
-    python-multipart>=0.0.6 \
-    python-jose>=3.3.0
+    "fastapi>=0.104.0,<1.0.0" \
+    "uvicorn>=0.24.0,<1.0.0" \
+    "python-multipart>=0.0.6" \
+    "python-jose>=3.3.0"
 
 # Stage 3: Image processing
 RUN pip install --no-cache-dir \
-    opencv-python-headless>=4.8.0,<5.0.0 \
-    pytesseract>=0.3.8
+    "opencv-python-headless>=4.8.0,<5.0.0" \
+    "pytesseract>=0.3.8"
 
 # Stage 4: Document processing
 RUN pip install --no-cache-dir \
-    reportlab>=4.0.0,<5.0.0 \
-    img2pdf>=0.4.4
+    "reportlab>=4.0.0,<5.0.0" \
+    "img2pdf>=0.4.4"
 
 # Stage 5: ONNX and background removal
 RUN pip install --no-cache-dir \
-    onnxruntime>=1.12.0,<2.0.0 \
-    rembg>=2.0.50,<3.0.0
+    "onnxruntime>=1.12.0,<2.0.0" \
+    "rembg>=2.0.50,<3.0.0"
 
 # Stage 6: PaddlePaddle (install first)
-RUN pip install --no-cache-dir paddlepaddle>=2.5.0,<3.0.0
+RUN pip install --no-cache-dir "paddlepaddle>=2.5.0,<3.0.0"
 
 # Stage 7: PaddleOCR (install after PaddlePaddle)
-RUN pip install --no-cache-dir paddleocr>=2.7.0,<3.0.0
+RUN pip install --no-cache-dir "paddleocr>=2.7.0,<3.0.0"
 
 # (Optional) Bake rembg model to avoid cold downloads
 RUN mkdir -p /root/.u2net && \
