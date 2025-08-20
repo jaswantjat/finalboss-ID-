@@ -70,11 +70,10 @@ RUN pip install --no-cache-dir \
     "rembg>=2.0.50,<3.0.0"
 
 # Stage 6: PaddlePaddle (install first)
-RUN pip install --no-cache-dir "paddlepaddle>=2.5.0,<3.0.0"
+RUN pip install --no-cache-dir "paddlepaddle==3.0.0"
 
 # Stage 7: PaddleOCR (install after PaddlePaddle)
-# Use 3.x because DocImgOrientationClassification is introduced in 3.x
-RUN pip install --no-cache-dir "paddleocr>=3.0.3,<4.0.0"
+RUN pip install --no-cache-dir "paddleocr==3.0.1"
 
 # (Optional) Bake rembg model to avoid cold downloads
 RUN mkdir -p /root/.u2net && \

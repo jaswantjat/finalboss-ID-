@@ -102,7 +102,11 @@ class HardenedOrientationDetector:
             processed_img = self._preprocess_for_ocr(img)
 
             # Use Tesseract OSD with proper PSM mode
-            osd = pytesseract.image_to_osd(processed_img, config="--psm 0", output_type=pytesseract.Output.DICT)
+            osd = pytesseract.image_to_osd(
+                processed_img,
+                config="--psm 0 -c min_characters_to_try=10",
+                output_type=pytesseract.Output.DICT
+            )
 
             angle = int(osd.get('rotate', 0))
             confidence = float(osd.get('orientation_conf', 0)) / 100.0  # Convert to 0-1 range
