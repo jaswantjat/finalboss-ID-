@@ -1,24 +1,25 @@
-# Railway Config as Code - Optimized for Full ML Build
+# Railway Config as Code - Production ML Build
 # Docs: https://docs.railway.com/reference/config-as-code
 
 [build]
-# Use main Dockerfile for full ML functionality
+# Use Dockerfile for locked runtime environment
 builder = "DOCKERFILE"
-# Increase build timeout for ML dependencies
-buildCommand = "docker build -t autocropper:latest ."
 
 [deploy]
-# Optimized for full ML functionality
-# Let Dockerfile CMD handle startup with proper shell expansion
+# Production deployment settings
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ALWAYS"
 
-# Environment variables for production
+# Environment variables for stable ML behavior
 [env]
-# Optimize for ML workloads
+# Tesseract configuration
+TESSDATA_PREFIX = "/usr/share/tesseract-ocr/4.00/tessdata"
+# Threading limits for stable server behavior
+OMP_THREAD_LIMIT = "1"
+UVICORN_WORKERS = "1"
+# Python optimization
 PYTHONUNBUFFERED = "1"
-PYTHONDONTWRITEBYTECODE = "1"
-# Increase memory allocation hints
-NODE_OPTIONS = "--max-old-space-size=4096"
+# Optional: Force rembg to use baked model
+U2NET_PATH = "/root/.u2net/u2net.onnx"
 

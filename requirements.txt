@@ -1,39 +1,17 @@
-# Full-featured requirements - Complete ML functionality (Default)
-# Install order optimized for Docker builds
-
-# Core foundation
-numpy>=1.20.0,<2.0.0
-pillow>=9.0.0,<11.0.0
-setuptools>=65.0.0
-wheel>=0.37.0
-
-# Image processing
-opencv-python-headless>=4.5.0,<5.0.0
-
-# Web framework
-fastapi>=0.104.0,<1.0.0
-uvicorn>=0.24.0,<1.0.0
+# Production requirements - Railway optimized with proper ML dependencies
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+opencv-python-headless==4.10.0.84
+pytesseract==0.3.10
+Pillow==10.4.0
+numpy==2.0.1
+reportlab==4.2.2
+rembg==2.0.57
+onnxruntime==1.18.1
 python-multipart>=0.0.6
 python-jose>=3.3.0
+img2pdf>=0.4.4
 
-# Document processing
-pytesseract>=0.3.8
-reportlab>=4.0.0,<5.0.0
-img2pdf>=0.4.4,<1.0.0
-
-# PyTorch CPU (optimized for production)
-torch>=1.11.0,<3.0.0
-torchvision>=0.12.0,<1.0.0
-
-# ML and NLP
-transformers>=4.20.0,<5.0.0
-sentencepiece>=0.1.96,<1.0.0
-
-# ONNX Runtime
-onnxruntime>=1.12.0,<2.0.0
-
-# Background removal
-rembg>=2.0.67,<3.0.0
-
-# Advanced OCR (PaddleOCR)
-paddleocr>=3.0.3,<4.0.0
+# Orientation model (Paddle) - PaddlePaddle MUST be installed before PaddleOCR
+paddlepaddle==2.6.1
+paddleocr==2.7.3

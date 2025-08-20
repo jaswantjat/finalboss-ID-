@@ -175,13 +175,76 @@ async def root():
 
 @app.get("/health", tags=["Health"])
 async def health_check():
-    """Health check endpoint"""
+    """Health check endpoint with environment validation"""
+    import subprocess
+    import os
+
     uptime = datetime.now() - stats.start_time
+
+    # Check Tesseract and languages
+    tesseract_info = {}
+    try:
+        # Get Tesseract version
+        version_result = subprocess.run(['tesseract', '--version'],
+                                      capture_output=True, text=True, timeout=5)
+        tesseract_info['version'] = version_result.stderr.split('\n')[0] if version_result.stderr else "Unknown"
+
+        # Get available languages
+        lang_result = subprocess.run(['tesseract', '--list-langs'],
+                                   capture_output=True, text=True, timeout=5)
+        if lang_result.returncode == 0:
+            langs = lang_result.stdout.strip().split('\n')[1:]  # Skip header
+            tesseract_info['languages'] = langs
+            tesseract_info['has_osd'] = 'osd' in langs
+            tesseract_info['has_spanish'] = 'spa' in langs
+        else:
+            tesseract_info['languages'] = []
+            tesseract_info['has_osd'] = False
+            tesseract_info['has_spanish'] = False
+    except Exception as e:
+        tesseract_info['error'] = str(e)
+
+    # Check PaddleOCR availability
+    paddle_info = {}
+    try:
+        import paddle
+        paddle_info['available'] = True
+        paddle_info['version'] = paddle.__version__
+    except ImportError:
+        paddle_info['available'] = False
+        paddle_info['error'] = "PaddlePaddle not installed"
+    except Exception as e:
+        paddle_info['available'] = False
+        paddle_info['error'] = str(e)
+
+    # Check OpenCV
+    opencv_info = {}
+    try:
+        import cv2
+        opencv_info['version'] = cv2.__version__
+        opencv_info['headless'] = not hasattr(cv2, 'imshow')
+    except Exception as e:
+        opencv_info['error'] = str(e)
+
+    # Environment variables
+    env_info = {
+        'TESSDATA_PREFIX': os.getenv('TESSDATA_PREFIX'),
+        'OMP_THREAD_LIMIT': os.getenv('OMP_THREAD_LIMIT'),
+        'UVICORN_WORKERS': os.getenv('UVICORN_WORKERS'),
+        'PORT': os.getenv('PORT')
+    }
+
     return {
         "status": "healthy",
         "uptime_seconds": uptime.total_seconds(),
         "total_requests": stats.total_requests,
-        "success_rate": (stats.successful_requests / max(stats.total_requests, 1)) * 100
+        "success_rate": (stats.successful_requests / max(stats.total_requests, 1)) * 100,
+        "environment": {
+            "tesseract": tesseract_info,
+            "paddleocr": paddle_info,
+            "opencv": opencv_info,
+            "env_vars": env_info
+        }
     }
 
 @app.get("/stats", tags=["Monitoring"])

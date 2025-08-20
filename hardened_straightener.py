@@ -96,26 +96,124 @@ class HardenedOrientationDetector:
             return self._tesseract_osd_fallback(img)
     
     def _tesseract_osd_fallback(self, img: np.ndarray) -> Dict[str, Any]:
-        """Fallback orientation detection using Tesseract OSD"""
+        """Robust Tesseract OSD fallback with preprocessing"""
         try:
-            # Convert to grayscale for Tesseract
-            if len(img.shape) == 3:
-                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            else:
-                gray = img
-            
-            # Use Tesseract OSD (Orientation and Script Detection)
-            osd = pytesseract.image_to_osd(gray, output_type=pytesseract.Output.DICT)
-            
+            # Preprocess image for better OSD results
+            processed_img = self._preprocess_for_ocr(img)
+
+            # Use Tesseract OSD with proper PSM mode
+            osd = pytesseract.image_to_osd(processed_img, config="--psm 0", output_type=pytesseract.Output.DICT)
+
             angle = int(osd.get('rotate', 0))
             confidence = float(osd.get('orientation_conf', 0)) / 100.0  # Convert to 0-1 range
-            
+
             logger.info(f"Tesseract OSD orientation: {angle}° (confidence: {confidence:.3f})")
-            
+
+            # If OSD confidence is still low, try geometry fallback
+            if confidence < 0.5:
+                logger.warning("Low OSD confidence, trying geometry fallback")
+                geometry_result = self._geometry_fallback(img)
+                if geometry_result["confidence"] > confidence:
+                    return geometry_result
+
             return {
                 "angle": angle,
                 "confidence": confidence,
                 "method": "tesseract_osd",
+                "fallback_used": True
+            }
+
+        except Exception as e:
+            logger.error(f"Tesseract OSD fallback failed: {e}")
+            return self._geometry_fallback(img)
+
+    def _preprocess_for_ocr(self, img: np.ndarray) -> np.ndarray:
+        """Preprocess image for better OCR results"""
+        # Convert to grayscale
+        if len(img.shape) == 3:
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = img.copy()
+
+        # Upsample to ~300-400 DPI equivalent if image is small
+        height, width = gray.shape
+        if height < 800 or width < 800:
+            scale_factor = max(800 / height, 800 / width)
+            new_width = int(width * scale_factor)
+            new_height = int(height * scale_factor)
+            gray = cv2.resize(gray, (new_width, new_height), interpolation=cv2.INTER_CUBIC)
+
+        # Apply CLAHE for better contrast
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        gray = clahe.apply(gray)
+
+        # Adaptive thresholding for better text detection
+        binary = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                     cv2.THRESH_BINARY, 11, 2)
+
+        return binary
+
+    def _geometry_fallback(self, img: np.ndarray) -> Dict[str, Any]:
+        """Geometry-based orientation detection for low-text images"""
+        try:
+            # Convert to grayscale
+            if len(img.shape) == 3:
+                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            else:
+                gray = img.copy()
+
+            # Edge detection
+            edges = cv2.Canny(gray, 50, 150, apertureSize=3)
+
+            # Hough line detection
+            lines = cv2.HoughLines(edges, 1, np.pi/180, threshold=100)
+
+            if lines is not None:
+                angles = []
+                for rho, theta in lines[:20]:  # Use top 20 lines
+                    angle = np.degrees(theta) - 90
+                    # Normalize to 0, 90, 180, 270
+                    if -45 <= angle <= 45:
+                        angles.append(0)
+                    elif 45 < angle <= 135:
+                        angles.append(90)
+                    elif angle > 135 or angle <= -135:
+                        angles.append(180)
+                    else:
+                        angles.append(270)
+
+                if angles:
+                    # Find most common angle
+                    angle_counts = {0: 0, 90: 0, 180: 0, 270: 0}
+                    for angle in angles:
+                        angle_counts[angle] += 1
+
+                    best_angle = max(angle_counts, key=angle_counts.get)
+                    confidence = angle_counts[best_angle] / len(angles)
+
+                    logger.info(f"Geometry orientation: {best_angle}° (confidence: {confidence:.3f})")
+
+                    return {
+                        "angle": best_angle,
+                        "confidence": confidence,
+                        "method": "geometry",
+                        "fallback_used": True
+                    }
+
+            # If no lines found, assume no rotation needed
+            return {
+                "angle": 0,
+                "confidence": 0.3,
+                "method": "geometry_default",
+                "fallback_used": True
+            }
+
+        except Exception as e:
+            logger.error(f"Geometry fallback failed: {e}")
+            return {
+                "angle": 0,
+                "confidence": 0.1,
+                "method": "default",
                 "fallback_used": True
             }
             

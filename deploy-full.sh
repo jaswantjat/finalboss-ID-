@@ -1,10 +1,16 @@
 #!/bin/bash
-# Production deployment script for full ML build
-# Ensures all ML capabilities are available
+# Production deployment script - Railway optimized
+# Implements fixes for PaddleOCR, Tesseract OSD, and environment issues
 
 set -e
 
-echo "🚀 Starting Full ML Build Deployment..."
+echo "🚀 Starting Production ML Build Deployment..."
+echo "   Implementing fixes for Railway production issues:"
+echo "   ✅ PaddlePaddle + PaddleOCR installation"
+echo "   ✅ Tesseract OSD + Spanish language packs"
+echo "   ✅ OpenCV headless configuration"
+echo "   ✅ Environment variable setup"
+echo ""
 
 # Check if Docker is available
 if ! command -v docker &> /dev/null; then

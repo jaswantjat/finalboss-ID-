@@ -37,18 +37,19 @@ A FastAPI-based web service with complete machine learning functionality:
 
 ## Quick Start
 
-### 🚀 Production Deployment (Automatic Build Selection)
+### 🚀 Production Deployment (Railway Optimized)
 
 ```bash
-# Comprehensive deployment with automatic fallback (Recommended)
+# Production deployment with Railway fixes (Recommended)
 ./deploy-full.sh
 ```
 
-This will:
-- Automatically try multiple build strategies until one succeeds
-- Test all available ML capabilities
-- Verify production readiness
-- Provide deployment instructions
+This implements comprehensive fixes for Railway production issues:
+- ✅ **PaddlePaddle + PaddleOCR** installation (fixes "No module named 'paddle'")
+- ✅ **Tesseract OSD + Spanish** language packs (fixes orientation detection)
+- ✅ **OpenCV headless** configuration (eliminates GUI dependencies)
+- ✅ **Environment variables** for stable server behavior
+- ✅ **Baked rembg model** (eliminates cold start downloads)
 
 ### 🐳 Docker Deployment Options
 
