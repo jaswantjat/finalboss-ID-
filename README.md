@@ -37,27 +37,35 @@ A FastAPI-based web service with complete machine learning functionality:
 
 ## Quick Start
 
-### 🚀 Production Deployment (Full ML Build)
+### 🚀 Production Deployment (Automatic Build Selection)
 
 ```bash
-# Deploy full ML functionality (Recommended)
+# Comprehensive deployment with automatic fallback (Recommended)
 ./deploy-full.sh
 ```
 
 This will:
-- Build Docker image with complete ML stack
-- Test all ML capabilities (PaddleOCR, background removal, PDF)
+- Automatically try multiple build strategies until one succeeds
+- Test all available ML capabilities
 - Verify production readiness
 - Provide deployment instructions
 
-### 🐳 Docker Deployment
+### 🐳 Docker Deployment Options
 
 ```bash
-# Full ML build (default)
-docker build -t autocropper:latest .
-docker run -p 8000:8000 autocropper:latest
+# Option 1: Automatic build with fallbacks (Recommended)
+./build-with-fallbacks.sh
 
-# Access API at http://localhost:8000
+# Option 2: Diagnostic first, then build
+./diagnose-build-issues.sh  # Identify best strategy
+docker build -t autocropper:latest .  # Then build
+
+# Option 3: Specific build strategy
+docker build -f Dockerfile.robust -t autocropper:robust .
+docker build -f Dockerfile.minimal -t autocropper:minimal .
+
+# Run the built image
+docker run -p 8000:8000 <image-name>
 ```
 
 ### 🛠️ Local Development

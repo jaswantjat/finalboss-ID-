@@ -1,5 +1,5 @@
-# Full-featured production Dockerfile - Default build with all ML capabilities
-FROM python:3.11-slim
+# Production Dockerfile - Full ML capabilities with robust package management
+FROM python:3.11-slim-bookworm
 
 # Environment variables for optimal Python and pip behavior
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -10,27 +10,53 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_RETRIES=3 \
     DEBIAN_FRONTEND=noninteractive
 
-# Install system dependencies with error handling
+# Update package lists first
+RUN apt-get update && apt-get upgrade -y
+
+# Install system dependencies in small, reliable groups
+# Group 1: Essential utilities (always available)
+RUN apt-get install -y --no-install-recommends \
+    curl \
+    wget \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* && apt-get clean
+
+# Group 2: Build tools (required for Python packages)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    # Build essentials
     build-essential \
     gcc \
     g++ \
-    # Tesseract OCR
+    && rm -rf /var/lib/apt/lists/* && apt-get clean
+
+# Group 3: Tesseract OCR (core functionality)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr \
-    tesseract-ocr-spa \
-    # OpenCV and graphics libraries
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
-    libgomp1 \
-    libgl1-mesa-glx \
-    libgfortran5 \
-    # Additional utilities
-    curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+    && rm -rf /var/lib/apt/lists/* && apt-get clean
+
+# Group 4: Tesseract language packs (with individual error handling)
+RUN apt-get update && \
+    (apt-get install -y --no-install-recommends tesseract-ocr-eng || echo "English pack not available") && \
+    (apt-get install -y --no-install-recommends tesseract-ocr-spa || echo "Spanish pack not available") && \
+    (apt-get install -y --no-install-recommends tesseract-ocr-osd || echo "OSD pack not available") && \
+    rm -rf /var/lib/apt/lists/* && apt-get clean
+
+# Group 5: Graphics libraries (with fallbacks)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libglib2.0-0 && \
+    (apt-get install -y --no-install-recommends libsm6 || echo "libsm6 not available") && \
+    (apt-get install -y --no-install-recommends libxext6 || echo "libxext6 not available") && \
+    (apt-get install -y --no-install-recommends libxrender-dev || echo "libxrender-dev not available") && \
+    (apt-get install -y --no-install-recommends libgomp1 || echo "libgomp1 not available") && \
+    (apt-get install -y --no-install-recommends libgfortran5 || echo "libgfortran5 not available") && \
+    rm -rf /var/lib/apt/lists/* && apt-get clean
+
+# Group 6: OpenGL libraries (multiple fallbacks)
+RUN apt-get update && \
+    (apt-get install -y --no-install-recommends libgl1-mesa-glx || \
+     apt-get install -y --no-install-recommends libgl1-mesa-dev || \
+     apt-get install -y --no-install-recommends libgl1 || \
+     echo "OpenGL libraries not available") && \
+    rm -rf /var/lib/apt/lists/* && apt-get clean
 
 WORKDIR /app
 

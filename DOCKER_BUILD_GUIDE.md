@@ -1,9 +1,16 @@
-# Docker Build Guide - Solving Dependency Conflicts
+# Docker Build Guide - Comprehensive Solution for Build Failures
 
 ## Problem Analysis
 
-The Docker build failure (exit code 2) during pip install is caused by:
+Docker build failures can occur at different stages:
 
+### **apt-get install failures (exit code 100)**:
+1. **Package availability**: Some packages may not exist in the specific Debian version
+2. **Repository issues**: Package lists may be outdated or repositories unavailable
+3. **Package name changes**: Package names differ between Debian versions
+4. **Missing dependencies**: Some packages require additional repositories
+
+### **pip install failures (exit code 2)**:
 1. **Complex ML dependency conflicts** between PyTorch, PaddleOCR, Transformers, and ONNX Runtime
 2. **Platform-specific package issues** with ONNX Runtime conditional installation
 3. **Memory/resource constraints** during build process
@@ -11,23 +18,38 @@ The Docker build failure (exit code 2) during pip install is caused by:
 
 ## Solution Strategy
 
-### 🎯 **Default: Full Build with Complete ML Functionality**
+### 🎯 **Strategy 1: Automatic Build with Fallbacks (Recommended)**
 
-The main `Dockerfile` is optimized for full functionality by default:
+Use the comprehensive build script that tries multiple approaches:
 
 ```bash
-# Default build - Full ML functionality (Recommended)
-docker build -t autocropper:latest .
+# Automatic build with fallback strategies
+./build-with-fallbacks.sh
 ```
 
-**Features:**
-- ✅ Complete ML functionality (PaddleOCR, background removal, transformers)
-- ✅ Advanced image straightening with CNN-based orientation detection
-- ✅ Background removal with rembg
-- ✅ Enhanced PDF conversion with alpha channel handling
-- ✅ Optimized staged installation with retry logic
-- ✅ CPU-optimized PyTorch for production stability
-- ✅ Extended timeouts and robust error handling
+This script will try in order:
+1. **Main Dockerfile** (full ML functionality)
+2. **Dockerfile.robust** (enhanced package management)
+3. **Dockerfile.fixed** (individual package error handling)
+4. **Dockerfile.minimal** (core functionality only)
+
+### 🚀 **Strategy 2: Manual Build Selection**
+
+Choose a specific build approach:
+
+```bash
+# Full ML build (main)
+docker build -t autocropper:full .
+
+# Robust build (enhanced error handling)
+docker build -f Dockerfile.robust -t autocropper:robust .
+
+# Fixed build (individual package handling)
+docker build -f Dockerfile.fixed -t autocropper:fixed .
+
+# Minimal build (core functionality)
+docker build -f Dockerfile.minimal -t autocropper:minimal .
+```
 
 ### 🚀 **Fallback: Minimal Build (Emergency Only)**
 
@@ -69,19 +91,50 @@ pip install -r requirements-ml.txt
 | Memory Usage | 2-4 GB | 512 MB - 1 GB |
 | Production Ready | ✅ Full feature set | ⚠️ Limited capabilities |
 
-## Troubleshooting
+## Comprehensive Troubleshooting
 
-### If Full Build Fails:
+### **apt-get install failures (exit code 100)**
 
-1. **Try minimal build first** to verify basic functionality
-2. **Check Railway/platform memory limits** (may need to increase)
-3. **Use local development** for testing
+**Symptoms**: Build fails during system package installation
+**Solutions**:
+1. **Use Dockerfile.fixed**: Handles packages individually with error handling
+2. **Check base image**: Ensure using `python:3.11-slim-bookworm`
+3. **Update package lists**: Some builds include `apt-get update` before each group
+4. **Package alternatives**: Script tries multiple package names for same functionality
 
-### Common Issues:
+```bash
+# Debug specific package availability
+docker run --rm python:3.11-slim-bookworm bash -c "apt-get update && apt-cache search tesseract"
+```
 
-- **Out of memory**: Use minimal build or increase platform resources
-- **Dependency conflicts**: Staged installation should resolve most issues
-- **Platform compatibility**: CPU-only PyTorch improves compatibility
+### **pip install failures (exit code 2)**
+
+**Symptoms**: Build fails during Python package installation
+**Solutions**:
+1. **Memory issues**: Increase Docker memory allocation to 4GB+
+2. **Dependency conflicts**: Use staged installation approach
+3. **Platform issues**: Use CPU-only PyTorch builds
+4. **Timeout issues**: Extended timeouts already configured (600s)
+
+### **Build Strategy Selection**
+
+**If main build fails**:
+1. ✅ Try `./build-with-fallbacks.sh` (automatic fallback)
+2. ✅ Try `Dockerfile.robust` (enhanced package management)
+3. ✅ Try `Dockerfile.fixed` (individual error handling)
+4. ✅ Try `Dockerfile.minimal` (core functionality only)
+
+### **Platform-Specific Issues**
+
+**Railway/Cloud Platforms**:
+- Increase memory allocation in platform settings
+- Use CPU-only builds (already configured)
+- Consider using minimal build for resource constraints
+
+**Local Development**:
+- Increase Docker Desktop memory allocation
+- Ensure stable internet connection for package downloads
+- Try building during off-peak hours
 
 ## Railway Deployment
 

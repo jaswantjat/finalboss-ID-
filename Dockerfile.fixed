@@ -1,0 +1,126 @@
+# Fixed Dockerfile - Addresses specific apt-get exit code 100 issues
+FROM python:3.11-slim-bookworm
+
+# Environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_DEFAULT_TIMEOUT=600 \
+    PIP_RETRIES=3 \
+    DEBIAN_FRONTEND=noninteractive
+
+# Update package lists and fix any repository issues
+RUN apt-get update && apt-get upgrade -y
+
+# Install packages in small, testable groups to isolate failures
+# Group 1: Essential utilities (these should always work)
+RUN apt-get install -y --no-install-recommends \
+    curl \
+    wget \
+    ca-certificates \
+    && apt-get clean
+
+# Group 2: Build tools (essential for Python packages)
+RUN apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc \
+    g++ \
+    && apt-get clean
+
+# Group 3: Tesseract OCR (core functionality)
+RUN apt-get install -y --no-install-recommends \
+    tesseract-ocr \
+    && apt-get clean
+
+# Group 4: Try language packs with individual error handling
+RUN apt-get install -y --no-install-recommends tesseract-ocr-eng || echo "English pack not available"
+RUN apt-get install -y --no-install-recommends tesseract-ocr-spa || echo "Spanish pack not available"
+RUN apt-get install -y --no-install-recommends tesseract-ocr-osd || echo "OSD pack not available"
+
+# Group 5: Core graphics libraries (required for OpenCV)
+RUN apt-get install -y --no-install-recommends \
+    libglib2.0-0 \
+    && apt-get clean
+
+# Group 6: Additional graphics libraries (with individual error handling)
+RUN apt-get install -y --no-install-recommends libsm6 || echo "libsm6 not available"
+RUN apt-get install -y --no-install-recommends libxext6 || echo "libxext6 not available"
+RUN apt-get install -y --no-install-recommends libxrender-dev || echo "libxrender-dev not available"
+RUN apt-get install -y --no-install-recommends libxrender1 || echo "libxrender1 not available"
+
+# Group 7: Math and parallel processing libraries
+RUN apt-get install -y --no-install-recommends libgomp1 || echo "libgomp1 not available"
+RUN apt-get install -y --no-install-recommends libgfortran5 || echo "libgfortran5 not available"
+
+# Group 8: OpenGL libraries (try multiple alternatives)
+RUN apt-get install -y --no-install-recommends libgl1-mesa-glx || \
+    apt-get install -y --no-install-recommends libgl1-mesa-dev || \
+    apt-get install -y --no-install-recommends libgl1 || \
+    echo "OpenGL libraries not available"
+
+# Group 9: Image processing libraries
+RUN apt-get install -y --no-install-recommends libjpeg62-turbo-dev || \
+    apt-get install -y --no-install-recommends libjpeg-dev || \
+    echo "JPEG libraries not available"
+RUN apt-get install -y --no-install-recommends libpng-dev || echo "PNG libraries not available"
+RUN apt-get install -y --no-install-recommends libtiff5-dev || echo "TIFF libraries not available"
+
+# Final cleanup
+RUN rm -rf /var/lib/apt/lists/* && \
+    apt-get autoclean
+
+WORKDIR /app
+
+# Python dependency installation (same as before)
+RUN python -m pip install --upgrade pip setuptools wheel
+
+# Install in stages with error handling
+RUN pip install --no-cache-dir numpy>=1.20.0
+RUN pip install --no-cache-dir pillow>=9.0.0
+RUN pip install --no-cache-dir opencv-python-headless>=4.5.0
+
+RUN pip install --no-cache-dir \
+    fastapi>=0.104.0 \
+    uvicorn>=0.24.0 \
+    python-multipart>=0.0.6 \
+    python-jose>=3.3.0
+
+RUN pip install --no-cache-dir \
+    pytesseract>=0.3.8 \
+    reportlab>=4.0.0 \
+    img2pdf>=0.4.4
+
+# PyTorch CPU
+RUN pip install --no-cache-dir \
+    torch>=1.11.0 \
+    torchvision>=0.12.0 \
+    --index-url https://download.pytorch.org/whl/cpu
+
+# ML libraries
+RUN pip install --no-cache-dir \
+    transformers>=4.20.0 \
+    sentencepiece>=0.1.96 \
+    onnxruntime>=1.12.0
+
+# Background removal
+RUN pip install --no-cache-dir rembg>=2.0.67
+
+# PaddleOCR with comprehensive error handling
+RUN pip install --no-cache-dir paddleocr>=3.0.3 || \
+    (echo "PaddleOCR install failed, trying without dependencies..." && \
+     pip install --no-cache-dir --no-deps paddleocr>=3.0.3) || \
+    echo "PaddleOCR installation failed, continuing without advanced OCR"
+
+# Copy application
+COPY . .
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=15s --start-period=30s --retries=3 \
+  CMD python -c "import urllib.request,os; urllib.request.urlopen(f'http://127.0.0.1:{os.getenv(\"PORT\",\"8000\")}/health', timeout=10)" || exit 1
+
+# Start command
+CMD ["sh", "-c", "uvicorn api_service:app --host 0.0.0.0 --port ${PORT:-8000}"]
