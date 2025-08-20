@@ -74,13 +74,27 @@ main() {
     
     check_docker
     
-    # Strategy 1: Try the main Dockerfile (full ML build)
-    if try_build "Dockerfile" "autocropper:full" "Full ML Build (Main Dockerfile)"; then
-        echo "🎉 Main build succeeded!"
+    # Strategy 1: Try the main Dockerfile (staged ML build)
+    if try_build "Dockerfile" "autocropper:full" "Staged ML Build (Main Dockerfile)"; then
+        echo "🎉 Staged build succeeded!"
         if test_image "autocropper:full"; then
-            echo "🎯 FINAL RESULT: Full ML build is working perfectly!"
+            echo "🎯 FINAL RESULT: Staged ML build is working perfectly!"
             echo "   Image: autocropper:full"
-            echo "   Features: Complete ML stack with PaddleOCR, rembg, PyTorch"
+            echo "   Features: Complete ML stack with PaddleOCR, rembg (staged installation)"
+            exit 0
+        fi
+    fi
+
+    echo "⚠️ Staged build failed, trying core functionality..."
+
+    # Strategy 1.5: Try core functionality build
+    if try_build "Dockerfile.core" "autocropper:core" "Core Functionality Build"; then
+        echo "🎉 Core build succeeded!"
+        if test_image "autocropper:core"; then
+            echo "🎯 FINAL RESULT: Core build is working!"
+            echo "   Image: autocropper:core"
+            echo "   Features: Essential functionality (FastAPI, OpenCV, PDF, Tesseract)"
+            echo "   Note: No PaddleOCR or background removal"
             exit 0
         fi
     fi
