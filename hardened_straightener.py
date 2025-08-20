@@ -27,7 +27,7 @@ def _get_orientation_model():
         try:
             from paddleocr import DocImgOrientationClassification
             logger.info("Loading PaddleOCR orientation model...")
-            _orientation_model = DocImgOrientationClassification(model_name="PP-LCNet_x1_0_doc_ori")
+            _orientation_model = DocImgOrientationClassification(model_name="PP-LCNet_x1_0_doc_ori", device="cpu", enable_mkldnn=True)
             logger.info("PaddleOCR orientation model loaded successfully")
         except Exception as e:
             logger.error(f"Failed to load PaddleOCR model: {e}")
@@ -168,19 +168,42 @@ class HardenedOrientationDetector:
             # Hough line detection
             lines = cv2.HoughLines(edges, 1, np.pi/180, threshold=100)
 
-            if lines is not None:
+            if lines is not None and len(lines) > 0:
                 angles = []
-                for rho, theta in lines[:20]:  # Use top 20 lines
-                    angle = np.degrees(theta) - 90
-                    # Normalize to 0, 90, 180, 270
-                    if -45 <= angle <= 45:
-                        angles.append(0)
-                    elif 45 < angle <= 135:
-                        angles.append(90)
-                    elif angle > 135 or angle <= -135:
-                        angles.append(180)
+                # Handle both HoughLines (rho, theta) and HoughLinesP (x1,y1,x2,y2) formats robustly
+                for entry in lines[:20]:  # Use top 20 lines
+                    vals = entry[0] if isinstance(entry, (list, tuple, np.ndarray)) else entry
+                    # Convert to flat list
+                    if isinstance(vals, np.ndarray):
+                        vals = vals.flatten().tolist()
+                    elif isinstance(vals, (list, tuple)):
+                        vals = list(vals)
                     else:
-                        angles.append(270)
+                        continue
+
+                    angle = None
+                    if len(vals) >= 2 and len(vals) < 4:
+                        # Standard HoughLines: [rho, theta]
+                        rho, theta = float(vals[0]), float(vals[1])
+                        angle = np.degrees(theta) - 90.0
+                    elif len(vals) >= 4:
+                        # Probabilistic HoughLinesP: [x1,y1,x2,y2]
+                        x1, y1, x2, y2 = map(float, vals[:4])
+                        angle = np.degrees(np.arctan2((y2 - y1), (x2 - x1)))
+                    else:
+                        continue
+
+                    # Bucket angle to 0/90/180/270
+                    if angle is not None:
+                        a = ((angle + 360.0) % 360.0)  # normalize to [0,360)
+                        if a <= 45 or a > 315:
+                            angles.append(0)
+                        elif 45 < a <= 135:
+                            angles.append(90)
+                        elif 135 < a <= 225:
+                            angles.append(180)
+                        else:
+                            angles.append(270)
 
                 if angles:
                     # Find most common angle

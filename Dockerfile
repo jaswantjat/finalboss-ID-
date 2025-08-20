@@ -73,7 +73,8 @@ RUN pip install --no-cache-dir \
 RUN pip install --no-cache-dir "paddlepaddle>=2.5.0,<3.0.0"
 
 # Stage 7: PaddleOCR (install after PaddlePaddle)
-RUN pip install --no-cache-dir "paddleocr>=2.7.0,<3.0.0"
+# Use 3.x because DocImgOrientationClassification is introduced in 3.x
+RUN pip install --no-cache-dir "paddleocr>=3.0.3,<4.0.0"
 
 # (Optional) Bake rembg model to avoid cold downloads
 RUN mkdir -p /root/.u2net && \
