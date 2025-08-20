@@ -38,10 +38,14 @@ WORKDIR /app
 RUN pip install --upgrade pip setuptools wheel
 
 # Install dependencies in stages for better error handling
-# Stage 1: Core dependencies
-RUN pip install --no-cache-dir \
-    numpy>=1.20.0,<2.0.0 \
-    Pillow>=9.0.0,<11.0.0
+# Stage 1: Core dependencies (force binary wheels; apt fallback)
+RUN (pip install --no-cache-dir --only-binary=:all: \
+        "numpy==1.26.4" \
+        "Pillow==10.3.0") \
+    || (echo "Binary wheels missing; installing via apt..." && \
+        apt-get update && \
+        apt-get install -y --no-install-recommends python3-numpy python3-pil && \
+        rm -rf /var/lib/apt/lists/*)
 
 # Stage 2: Web framework
 RUN pip install --no-cache-dir \
