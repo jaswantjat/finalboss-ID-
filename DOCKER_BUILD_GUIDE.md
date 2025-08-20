@@ -109,12 +109,21 @@ docker run --rm python:3.11-slim-bookworm bash -c "apt-get update && apt-cache s
 
 ### **pip install failures (exit code 2)**
 
-**Symptoms**: Build fails during Python package installation
+**Symptoms**: Build fails during Python package installation with exit code 2
+**Root Cause**: Missing system libraries required for compiling Python packages
+
+**Common Causes**:
+- **numpy**: Requires math libraries (`libblas-dev`, `liblapack-dev`, `gfortran`)
+- **Pillow**: Requires image format libraries (`libjpeg-dev`, `zlib1g-dev`, `libpng-dev`, `libtiff5-dev`, `libfreetype6-dev`)
+- **OpenCV**: Requires additional system libraries
+- **python:3.11-slim**: Missing development headers and libraries
+
 **Solutions**:
-1. **Memory issues**: Increase Docker memory allocation to 4GB+
-2. **Dependency conflicts**: Use staged installation approach
-3. **Platform issues**: Use CPU-only PyTorch builds
-4. **Timeout issues**: Extended timeouts already configured (600s)
+1. **System Dependencies**: Install comprehensive build libraries (implemented in main Dockerfile)
+2. **Staged Installation**: Install packages in logical groups to isolate failures
+3. **Robust Dependencies**: Use Dockerfile.robust-deps with fallback package names
+4. **Memory issues**: Increase Docker memory allocation to 4GB+
+5. **Testing**: Use test-system-deps.sh to verify dependency configuration
 
 ### **Build Strategy Selection**
 

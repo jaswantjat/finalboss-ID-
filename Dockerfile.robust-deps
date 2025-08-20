@@ -1,0 +1,97 @@
+# Robust Dockerfile with comprehensive system dependencies
+FROM python:3.11-slim
+
+# Environment variables for stable server behavior
+ENV PYTHONUNBUFFERED=1 \
+    TESSDATA_PREFIX=/usr/share/tesseract-ocr/4.00/tessdata \
+    OMP_THREAD_LIMIT=1 \
+    UVICORN_WORKERS=1 \
+    DEBIAN_FRONTEND=noninteractive
+
+# System deps with comprehensive error handling
+RUN apt-get update && \
+    # Install build tools first
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        gcc \
+        g++ \
+        python3-dev \
+        pkg-config \
+        make \
+        cmake \
+    && \
+    # Install image processing libraries with fallbacks
+    (apt-get install -y --no-install-recommends libjpeg-dev || apt-get install -y --no-install-recommends libjpeg62-turbo-dev) && \
+    apt-get install -y --no-install-recommends zlib1g-dev && \
+    (apt-get install -y --no-install-recommends libpng-dev || echo "libpng-dev not available") && \
+    (apt-get install -y --no-install-recommends libtiff5-dev || apt-get install -y --no-install-recommends libtiff-dev) && \
+    (apt-get install -y --no-install-recommends libfreetype6-dev || echo "libfreetype6-dev not available") && \
+    # Install math libraries with fallbacks
+    (apt-get install -y --no-install-recommends libblas-dev || echo "libblas-dev not available") && \
+    (apt-get install -y --no-install-recommends liblapack-dev || echo "liblapack-dev not available") && \
+    (apt-get install -y --no-install-recommends gfortran || echo "gfortran not available") && \
+    # Install Tesseract with fallbacks
+    apt-get install -y --no-install-recommends tesseract-ocr && \
+    (apt-get install -y --no-install-recommends tesseract-ocr-osd || echo "tesseract-ocr-osd not available") && \
+    (apt-get install -y --no-install-recommends tesseract-ocr-spa || echo "tesseract-ocr-spa not available") && \
+    # Install runtime libraries
+    (apt-get install -y --no-install-recommends libgl1 || apt-get install -y --no-install-recommends libgl1-mesa-glx) && \
+    apt-get install -y --no-install-recommends libglib2.0-0 libgomp1 curl ca-certificates && \
+    # Cleanup
+    rm -rf /var/lib/apt/lists/* && \
+    apt-get clean
+
+WORKDIR /app
+
+# Upgrade pip with verbose output for debugging
+RUN pip install --upgrade pip setuptools wheel --verbose
+
+# Install dependencies in stages with detailed error reporting
+# Stage 1: Core dependencies with verbose output
+RUN echo "Installing numpy and Pillow..." && \
+    pip install --no-cache-dir --verbose \
+        numpy>=1.20.0,<2.0.0 \
+        Pillow>=9.0.0,<11.0.0
+
+# Stage 2: Web framework
+RUN echo "Installing web framework..." && \
+    pip install --no-cache-dir \
+        fastapi>=0.104.0,<1.0.0 \
+        uvicorn>=0.24.0,<1.0.0 \
+        python-multipart>=0.0.6 \
+        python-jose>=3.3.0
+
+# Stage 3: Image processing
+RUN echo "Installing image processing..." && \
+    pip install --no-cache-dir \
+        opencv-python-headless>=4.8.0,<5.0.0 \
+        pytesseract>=0.3.8
+
+# Stage 4: Document processing
+RUN echo "Installing document processing..." && \
+    pip install --no-cache-dir \
+        reportlab>=4.0.0,<5.0.0 \
+        img2pdf>=0.4.4
+
+# Stage 5: ONNX and background removal
+RUN echo "Installing ONNX and background removal..." && \
+    pip install --no-cache-dir \
+        onnxruntime>=1.12.0,<2.0.0 \
+        rembg>=2.0.50,<3.0.0
+
+# Stage 6: PaddlePaddle (install first)
+RUN echo "Installing PaddlePaddle..." && \
+    pip install --no-cache-dir paddlepaddle>=2.5.0,<3.0.0
+
+# Stage 7: PaddleOCR (install after PaddlePaddle)
+RUN echo "Installing PaddleOCR..." && \
+    pip install --no-cache-dir paddleocr>=2.7.0,<3.0.0
+
+# (Optional) Bake rembg model to avoid cold downloads
+RUN mkdir -p /root/.u2net && \
+    curl -L -o /root/.u2net/u2net.onnx \
+      https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx
+
+COPY . .
+EXPOSE 8080
+CMD ["uvicorn","api_service:app","--host","0.0.0.0","--port","${PORT:-8080}","--workers","1"]

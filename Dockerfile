@@ -8,9 +8,27 @@ ENV PYTHONUNBUFFERED=1 \
     UVICORN_WORKERS=1 \
     DEBIAN_FRONTEND=noninteractive
 
-# System deps: Tesseract + OSD + Spanish + OpenCV runtime libs + Paddle needs libgomp
+# System deps: Build tools + Image libraries + Tesseract + Runtime libs
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Build dependencies for Python packages
+    build-essential \
+    gcc \
+    g++ \
+    python3-dev \
+    pkg-config \
+    # Image processing libraries (required for Pillow)
+    libjpeg-dev \
+    zlib1g-dev \
+    libpng-dev \
+    libtiff5-dev \
+    libfreetype6-dev \
+    # Math libraries (required for numpy)
+    libblas-dev \
+    liblapack-dev \
+    gfortran \
+    # Tesseract OCR
     tesseract-ocr tesseract-ocr-osd tesseract-ocr-spa \
+    # Runtime libraries
     libgl1 libglib2.0-0 libgomp1 curl ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 

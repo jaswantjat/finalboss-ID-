@@ -1,0 +1,58 @@
+# Test Dockerfile - Verify system dependencies fix
+FROM python:3.11-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install comprehensive system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Build tools
+    build-essential \
+    gcc \
+    g++ \
+    python3-dev \
+    pkg-config \
+    # Image libraries for Pillow
+    libjpeg-dev \
+    zlib1g-dev \
+    libpng-dev \
+    libtiff5-dev \
+    libfreetype6-dev \
+    # Math libraries for numpy
+    libblas-dev \
+    liblapack-dev \
+    gfortran \
+    # Basic utilities
+    curl \
+    ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Test pip upgrade
+RUN pip install --upgrade pip setuptools wheel
+
+# Test numpy and Pillow installation (the failing packages)
+RUN echo "Testing numpy installation..." && \
+    pip install --no-cache-dir --verbose numpy>=1.20.0,<2.0.0
+
+RUN echo "Testing Pillow installation..." && \
+    pip install --no-cache-dir --verbose Pillow>=9.0.0,<11.0.0
+
+# Verify installations work
+RUN python -c "import numpy; print(f'numpy {numpy.__version__} installed successfully')"
+RUN python -c "import PIL; print(f'Pillow {PIL.__version__} installed successfully')"
+
+# Test basic functionality
+RUN python -c "
+import numpy as np
+from PIL import Image
+print('Creating test array...')
+arr = np.array([[1, 2], [3, 4]])
+print(f'Array: {arr}')
+print('Creating test image...')
+img = Image.new('RGB', (100, 100), color='red')
+print(f'Image size: {img.size}')
+print('✅ All tests passed!')
+"
+
+CMD ["echo", "Dependencies test completed successfully"]

@@ -74,13 +74,26 @@ main() {
     
     check_docker
     
-    # Strategy 1: Try the main Dockerfile (staged ML build)
-    if try_build "Dockerfile" "autocropper:full" "Staged ML Build (Main Dockerfile)"; then
-        echo "🎉 Staged build succeeded!"
+    # Strategy 1: Try the main Dockerfile (staged ML build with fixed dependencies)
+    if try_build "Dockerfile" "autocropper:full" "Staged ML Build with Fixed Dependencies"; then
+        echo "🎉 Main build succeeded!"
         if test_image "autocropper:full"; then
-            echo "🎯 FINAL RESULT: Staged ML build is working perfectly!"
+            echo "🎯 FINAL RESULT: Main build is working perfectly!"
             echo "   Image: autocropper:full"
-            echo "   Features: Complete ML stack with PaddleOCR, rembg (staged installation)"
+            echo "   Features: Complete ML stack with PaddleOCR, rembg (fixed system deps)"
+            exit 0
+        fi
+    fi
+
+    echo "⚠️ Main build failed, trying robust dependencies approach..."
+
+    # Strategy 1.2: Try robust dependencies build
+    if try_build "Dockerfile.robust-deps" "autocropper:robust-deps" "Robust Dependencies Build"; then
+        echo "🎉 Robust dependencies build succeeded!"
+        if test_image "autocropper:robust-deps"; then
+            echo "🎯 FINAL RESULT: Robust dependencies build is working!"
+            echo "   Image: autocropper:robust-deps"
+            echo "   Features: Complete ML stack with comprehensive dependency handling"
             exit 0
         fi
     fi
